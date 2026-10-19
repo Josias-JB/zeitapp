@@ -440,7 +440,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12px;}
     </div>
     <div id="sy-file-box">
       <div id="sy-fs">
-        <div class="mnote">Wähle den Ordner <b>Stundenerfassung</b> in deinem OneDrive (z.B. «OneDrive – Firma\Stundenerfassung»). Die App liest und schreibt dort automatisch die Datei <b>stunden.txt</b> und räumt Kopien wie «stunden 1.txt» vom Tablet auf.</div>
+        <div class="mnote">Wähle den Ordner <b>Stundenerfassung</b> in deinem OneDrive (z.B. «OneDrive – Firma\Stundenerfassung»). Die App liest und schreibt dort automatisch die Stunden-Datei (<b>stunden_Datum_Zeit.txt</b>), übernimmt Dateien vom Tablet und räumt ältere Dateien auf.</div>
         <div class="sstat" id="sy-dirname">—</div>
         <div class="mf" style="display:flex;gap:6px;flex-wrap:wrap;">
           <button class="btn pri" onclick="fsConnect()">Ordner wählen…</button>
@@ -449,7 +449,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12px;}
       </div>
       <div id="sy-man">
         <div class="mnote"><b>Auf diesem Gerät manuell:</b><br>
-          1. Vor dem Erfassen: <b>↑ Laden</b> → OneDrive → Ordner «Stundenerfassung» → neueste <b>stunden…txt</b> wählen.<br>
+          1. Vor dem Erfassen: <b>↑ Laden</b> → OneDrive → Ordner «Stundenerfassung» → die <b>neueste</b> stunden_….txt wählen (eine Datei genügt).<br>
           2. Nach dem Erfassen: <b>↓ Speichern</b> → Teilen mit <b>OneDrive</b> → Ordner «Stundenerfassung» → Hochladen.<br>
           Ohne Netz einfach weiter erfassen; die Daten bleiben auf dem Gerät gespeichert.</div>
         <div class="mf" style="display:flex;gap:6px;flex-wrap:wrap;">
@@ -1190,6 +1190,7 @@ function toast(msg){var el=document.getElementById('toast');el.textContent=msg;e
 // gemeinsamen Stand – auch wenn auf einem Gerät das Laden vergessen wurde.
 var SY_CFG='bks_sync_cfg',SY_TOK='bks_sync_tok',SY_BASE='bks_sync_base',SY_REV='bks_sync_rev',SY_ETAG='bks_sync_etag',SY_PKCE='bks_sync_pkce';
 var SY_FILE='stunden.txt';
+function syFileName(){var d=new Date();return 'stunden_'+d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'_'+pad(d.getHours())+'-'+pad(d.getMinutes())+'-'+pad(d.getSeconds())+'.txt';}
 var SY_SCOPES='offline_access Files.ReadWrite User.Read';
 var SY_DEFAULT_PATH='Stundenerfassung/stunden.txt';
 var HAS_FS=('showDirectoryPicker' in window);
@@ -1415,18 +1416,18 @@ async function saveToFile(){
     markUnsaved(false);syManualStatus();
   }
   if(IS_MOBILE&&navigator.canShare){
-    var f=new File([text],SY_FILE,{type:'text/plain'});
+    var fname=syFileName();var f=new File([text],fname,{type:'text/plain'});
     if(navigator.canShare({files:[f]})){
-      try{await navigator.share({files:[f],title:SY_FILE});done();toast('✓ Geteilt — in OneDrive im Ordner «Stundenerfassung» speichern');}
+      try{await navigator.share({files:[f],title:fname});done();toast('✓ Geteilt — in OneDrive im Ordner «Stundenerfassung» speichern');}
       catch(e){if(e&&e.name!=='AbortError')toast('Teilen fehlgeschlagen: '+e.message);}
       return;
     }
   }
   var a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'}));
-  a.download=SY_FILE;a.click();
+  var dn=syFileName();a.download=dn;a.click();
   done();
-  toast('↓ '+SY_FILE+' gespeichert — in den OneDrive-Ordner «Stundenerfassung» legen');
+  toast('↓ '+dn+' gespeichert — in den OneDrive-Ordner «Stundenerfassung» legen');
 }
 
 // ── PC: OneDrive-Ordner verbinden (automatisch) ──────────
@@ -1490,13 +1491,18 @@ async function fsSync(manual){
     }
     if(!syEqual(syFlatten(S),L)){_sy.again=true;return;} // während des Abgleichs weiter erfasst
     if(!syEqual(cur,L))syApply(cur);
-    var needWrite=!valid||files.length>1||files[files.length-1].name!==SY_FILE||!r||!syEqual(cur,b);
-    if(needWrite){
+    // Nie überschreiben (OneDrive sperrt Dateien oft): immer eine neue Datei schreiben,
+    // danach die älteren Stunden-Dateien löschen.
+    var keep=valid?files[files.length-1].name:null;
+    if(!valid||!r||!syEqual(cur,b)){
       var payload=syPayload(cur,r,b);
-      var fh=await _fs.dir.getFileHandle(SY_FILE,{create:true});
+      keep=syFileName();
+      var fh=await _fs.dir.getFileHandle(keep,{create:true});
       var w=await fh.createWritable();await w.write(JSON.stringify(payload));await w.close();
-      for(var j=0;j<files.length;j++){if(files[j].name!==SY_FILE){try{await _fs.dir.removeEntry(files[j].name);}catch(e){}}}
       b=cur;r=payload.rev;
+    }
+    for(var j=0;j<files.length;j++){
+      if(files[j].name!==keep){try{await _fs.dir.removeEntry(files[j].name);}catch(e){console.warn('Löschen nicht möglich',files[j].name,e);}}
     }
     lsSet(SY_BASE,b);lsSet(SY_REV,r);
     _fs.sig=(await fsList()).map(function(x){return x.name+':'+x.f.lastModified+':'+x.f.size;}).join('|');
