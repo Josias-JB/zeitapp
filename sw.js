@@ -1,5 +1,5 @@
 // Offline-Cache für die Stundenerfassung. Bei App-Updates CACHE-Version erhöhen.
-const CACHE = 'bks-stunden-v1';
+const CACHE = 'bks-stunden-v2';
 const SHELL = ['./', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 
 self.addEventListener('install', e => {

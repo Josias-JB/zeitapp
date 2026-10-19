@@ -253,6 +253,9 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12px;}
 .cf-opts label{display:flex;align-items:center;gap:5px;font-size:11px;font-family:var(--mono);padding:3px 8px;border:1px solid var(--border);border-radius:var(--r);cursor:pointer;background:#fff;}
 .cf-opts label.on{border-color:var(--accent);background:var(--acc2);color:var(--accent);}
 .cf-opts input{display:none;}
+.sy-modes{display:flex;flex-direction:column;gap:4px;}
+.sy-modes label{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);cursor:pointer;}
+.sy-modes input{width:auto;margin:0;}
 
 /* TOAST */
 .toast{position:fixed;bottom:20px;right:20px;background:var(--text);color:#fff;padding:7px 14px;border-radius:var(--r);font-size:12px;font-weight:500;z-index:999;opacity:0;transform:translateY(6px);transition:opacity .2s,transform .2s;pointer-events:none;}
@@ -281,10 +284,10 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12px;}
   <div class="spacer"></div>
   <span class="badge" id="hdrInfo">—</span>
   <span id="unsavedDot" style="display:none;width:7px;height:7px;border-radius:50%;background:#f5a623;flex-shrink:0;" title="Ungespeicherte Änderungen"></span>
-  <button class="sync-pill" id="syncPill" onclick="openSyncModal()" title="OneDrive-Synchronisation"><span class="dot"></span><span id="syncTxt">OneDrive</span></button>
+  <button class="sync-pill" id="syncPill" onclick="syncPillClick()" title="Synchronisation"><span class="dot"></span><span id="syncTxt">Sync</span></button>
   <button class="btn sm" style="margin-left:4px;background:#2a2a2a;border-color:#444;color:#aaa;" onclick="exportCSV()">↓ CSV</button>
   <label class="btn sm" style="background:#2a2a2a;border-color:#444;color:#aaa;cursor:pointer;margin-left:4px;" title="JSON-Datei laden">
-    ↑ Laden <input type="file" accept=".json" onchange="loadFromFile(event)" style="display:none;">
+    ↑ Laden <input type="file" accept=".txt,.json,text/plain,application/json" multiple onchange="loadFromFile(event)" style="display:none;">
   </label>
   <button class="btn sm pri" style="margin-left:4px;" onclick="saveToFile()">↓ Speichern</button>
 </div>
@@ -427,20 +430,46 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12px;}
 <!-- SYNC-EINSTELLUNGEN -->
 <div class="ov" id="syncModal">
   <div class="modal wide">
-    <h3>OneDrive-Synchronisation</h3>
+    <h3>Synchronisation</h3>
     <div class="sstat" id="syncStat">—</div>
-    <div class="mf"><label>Redirect-URI (bei Microsoft eintragen)</label>
-      <div class="ro"><input type="text" id="sy-redir" readonly><button class="btn sm" onclick="copyRedir()">Kopieren</button></div></div>
-    <div class="mf"><label>Anwendungs-ID (Client-ID)</label><input type="text" id="sy-client" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
-    <div class="mf"><label>Verzeichnis-ID (Tenant-ID)</label><input type="text" id="sy-tenant" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
-    <div class="mf"><label>Datei in OneDrive</label><input type="text" id="sy-path"></div>
+    <div class="mf"><label>Art</label>
+      <div class="sy-modes">
+        <label><input type="radio" name="symode" value="file" onchange="syModeUI()"> OneDrive-Ordner (Datei)</label>
+        <label><input type="radio" name="symode" value="graph" onchange="syModeUI()"> OneDrive direkt (Microsoft-Anmeldung)</label>
+      </div>
+    </div>
+    <div id="sy-file-box">
+      <div id="sy-fs">
+        <div class="mnote">Wähle den Ordner <b>Stundenerfassung</b> in deinem OneDrive (z.B. «OneDrive – Firma\Stundenerfassung»). Die App liest und schreibt dort automatisch die Datei <b>stunden.txt</b> und räumt Kopien wie «stunden 1.txt» vom Tablet auf.</div>
+        <div class="sstat" id="sy-dirname">—</div>
+        <div class="mf" style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="btn pri" onclick="fsConnect()">Ordner wählen…</button>
+          <button class="btn" id="sy-disc" style="color:var(--red);" onclick="fsDisconnect()">Trennen</button>
+        </div>
+      </div>
+      <div id="sy-man">
+        <div class="mnote"><b>Auf diesem Gerät manuell:</b><br>
+          1. Vor dem Erfassen: <b>↑ Laden</b> → OneDrive → Ordner «Stundenerfassung» → neueste <b>stunden…txt</b> wählen.<br>
+          2. Nach dem Erfassen: <b>↓ Speichern</b> → Teilen mit <b>OneDrive</b> → Ordner «Stundenerfassung» → Hochladen.<br>
+          Ohne Netz einfach weiter erfassen; die Daten bleiben auf dem Gerät gespeichert.</div>
+        <div class="mf" style="display:flex;gap:6px;flex-wrap:wrap;">
+          <label class="btn" style="cursor:pointer;">↑ Laden<input type="file" accept=".txt,.json,text/plain,application/json" multiple onchange="closeSyncModal();loadFromFile(event)" style="display:none;"></label>
+          <button class="btn pri" onclick="closeSyncModal();saveToFile()">↓ Speichern</button>
+        </div>
+      </div>
+    </div>
+    <div id="sy-graph-box">
+      <div class="mf"><label>Redirect-URI (bei Microsoft eintragen)</label>
+        <div class="ro"><input type="text" id="sy-redir" readonly><button class="btn sm" onclick="copyRedir()">Kopieren</button></div></div>
+      <div class="mf"><label>Anwendungs-ID (Client-ID)</label><input type="text" id="sy-client" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
+      <div class="mf"><label>Verzeichnis-ID (Tenant-ID)</label><input type="text" id="sy-tenant" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
+      <div class="mf"><label>Datei in OneDrive</label><input type="text" id="sy-path"></div>
+    </div>
     <div class="mf"><label>Name dieses Geräts</label><input type="text" id="sy-dev" placeholder="z.B. PC Büro / Tablet"></div>
-    <div class="mnote">Die Anmeldung gilt pro Gerät. Microsoft verlangt etwa einmal täglich eine kurze Neuanmeldung, meist ohne Passworteingabe.</div>
     <div class="macts" style="flex-wrap:wrap;">
       <button class="btn" style="color:var(--red);margin-right:auto;" id="sy-logout" onclick="syncLogout()">Abmelden</button>
       <button class="btn" onclick="closeSyncModal()">Schliessen</button>
-      <button class="btn" id="sy-now" onclick="closeSyncModal();sync(true);">Jetzt synchronisieren</button>
-      <button class="btn pri" onclick="saveSyncCfg()">Speichern &amp; anmelden</button>
+      <button class="btn pri" onclick="saveSyncCfg()">Speichern</button>
     </div>
   </div>
 </div>
@@ -553,37 +582,6 @@ var _as=null;
 function autoSave(){clearTimeout(_as);_as=setTimeout(autoBackup,1800);markUnsaved(true);scheduleSync();}
 
 // ── JSON DATEI ───────────────────────────────────────────
-function saveToFile(){
-  var payload=getPayload();
-  var filename='stunden_'+S.year+'_'+pad(S.month+1)+'.json';
-  var blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json;charset=utf-8;'});
-  var a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download=filename;
-  a.click();
-  try{localStorage.setItem(APP_KEY,JSON.stringify(payload));}catch(e){}
-  markUnsaved(false);
-  toast('↓ '+filename+' gespeichert');
-}
-function loadFromFile(evt){
-  var file=evt.target.files[0];
-  if(!file)return;
-  var reader=new FileReader();
-  reader.onload=function(e){
-    try{
-      var v=JSON.parse(e.target.result);
-      if(!v.projs&&!v.data){toast('Ungültige Datei');return;}
-      applyPayload(v);
-      S.bill.pid=null;
-      selectDefaultDay();
-      renderAll();
-      markUnsaved(false);
-      toast('✓ '+file.name+' geladen');
-    }catch(ex){toast('Fehler beim Laden: '+ex.message);}
-  };
-  reader.readAsText(file);
-  evt.target.value='';
-}
 function markUnsaved(yes){
   var dot=document.getElementById('unsavedDot');
   if(dot)dot.style.display=yes?'inline-block':'none';
@@ -1184,14 +1182,20 @@ function exportCSV(){
 }
 function toast(msg){var el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(function(){el.classList.remove('show');},2400);}
 
-// ═════════════ ONEDRIVE-SYNCHRONISATION ═════════════
-// Login: OAuth 2.0 mit PKCE (Microsoft Identity Platform), ohne externe Bibliothek.
-// Daten: eine JSON-Datei im OneDrive (Microsoft Graph).
-// Zusammenführen: 3-Wege-Vergleich (dieses Gerät / letzter Sync-Stand / OneDrive).
-var SY_CFG='bks_sync_cfg',SY_TOK='bks_sync_tok',SY_BASE='bks_sync_base',SY_ETAG='bks_sync_etag',SY_PKCE='bks_sync_pkce';
+// ═════════════ SYNCHRONISATION ═════════════
+// Modus «file»:  OneDrive-Ordner. PC (Chrome/Edge): Ordner verbinden → automatisch.
+//                Tablet: manuell «↑ Laden» (aus OneDrive) / «↓ Speichern» (Teilen → OneDrive).
+// Modus «graph»: OneDrive direkt über Microsoft-Anmeldung (braucht App-Registrierung).
+// Jede Datei trägt rev / parent / base. So findet das Zusammenführen immer den
+// gemeinsamen Stand – auch wenn auf einem Gerät das Laden vergessen wurde.
+var SY_CFG='bks_sync_cfg',SY_TOK='bks_sync_tok',SY_BASE='bks_sync_base',SY_REV='bks_sync_rev',SY_ETAG='bks_sync_etag',SY_PKCE='bks_sync_pkce';
+var SY_FILE='stunden.txt';
 var SY_SCOPES='offline_access Files.ReadWrite User.Read';
-var SY_DEFAULT_PATH='Apps/Stundenerfassung/stunden.json';
+var SY_DEFAULT_PATH='Stundenerfassung/stunden.txt';
+var HAS_FS=('showDirectoryPicker' in window);
+var IS_MOBILE=/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
 var _sy={busy:false,again:false,timer:null,retries:0,state:'',txt:''};
+var _fs={dir:null,sig:null};
 
 function lsGet(k,def){try{var v=localStorage.getItem(k);return v===null?def:JSON.parse(v);}catch(e){return def;}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
@@ -1199,38 +1203,323 @@ function lsDel(k){try{localStorage.removeItem(k);}catch(e){}}
 
 function syCfg(){
   var c=lsGet(SY_CFG,{})||{};
+  if(!c.mode)c.mode='file';
   if(!c.path)c.path=SY_DEFAULT_PATH;
-  if(!c.device)c.device=/Android|iPad|Tablet/i.test(navigator.userAgent)?'Tablet':'PC';
+  if(!c.device)c.device=IS_MOBILE?'Tablet':'PC';
   return c;
 }
-function syConfigured(){var c=syCfg();return !!(c.clientId&&c.tenant);}
+function syGraphReady(){var c=syCfg();return c.mode==='graph'&&!!(c.clientId&&c.tenant);}
 function syRedirect(){return location.origin+location.pathname.replace(/index\.html$/,'');}
 function syAuthBase(c){return 'https://login.microsoftonline.com/'+encodeURIComponent(c.tenant||'organizations')+'/oauth2/v2.0';}
+function syTime(){var d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes());}
 
 // ── Status-Anzeige ───────────────────────────────────────
 function setSync(state,txt){
   _sy.state=state;_sy.txt=txt;
   var p=document.getElementById('syncPill');if(!p)return;
   p.className='sync-pill'+(state?' '+state:'');
-  document.getElementById('syncTxt').textContent=txt||'OneDrive';
-  p.title='OneDrive: '+(txt||'nicht verbunden');
+  document.getElementById('syncTxt').textContent=txt||'Sync';
+  p.title='Synchronisation: '+(txt||'nicht eingerichtet');
   var st=document.getElementById('syncStat');if(st)st.textContent=syStatusText();
 }
 function syStatusText(){
-  if(!syConfigured())return 'Nicht eingerichtet: Client-ID und Tenant-ID eintragen, dann «Speichern & anmelden».';
-  if(!lsGet(SY_TOK,null))return 'Eingerichtet, aber nicht angemeldet.';
-  return 'Status: '+(_sy.txt||'—');
+  var c=syCfg();
+  if(c.mode==='graph'){
+    if(!syGraphReady())return 'OneDrive direkt: Client-ID und Tenant-ID eintragen, dann «Speichern».';
+    if(!lsGet(SY_TOK,null))return 'OneDrive direkt: eingerichtet, aber nicht angemeldet.';
+    return 'OneDrive direkt · '+(_sy.txt||'—');
+  }
+  if(_fs.dir)return 'Verbunden mit Ordner «'+_fs.dir.name+'» · '+(_sy.txt||'—');
+  if(HAS_FS)return 'Noch kein Ordner verbunden.';
+  return 'Manuell: '+(_sy.txt||'—');
+}
+function syManualStatus(){
+  if(syCfg().mode==='graph'||_fs.dir)return;
+  var last=lsGet('bks_sync_last',null);
+  if(syEqual(syFlatten(S),lsGet(SY_BASE,{})))setSync('ok',last?'Gespeichert '+last:'Aktuell');
+  else setSync('busy','Nicht gespeichert');
 }
 
-// ── Login (PKCE) ─────────────────────────────────────────
+// ── Daten flach machen / zurückbauen ─────────────────────
+function syFlatten(st){
+  var m={};
+  (st.projs||[]).forEach(function(p){
+    m['p|'+p.id]=JSON.stringify({name:p.name||'',num:p.num||'',color:p.color||'',closed:!!p.closed});
+  });
+  var data=st.data||{};
+  for(var day in data){for(var sl in data[day]){var rw=data[day][sl];for(var k in rw){
+    if(k==='bem'){if(rw.bem)m['b|'+day+'|'+sl]=String(rw.bem);}
+    else{var v=parseFloat(rw[k])||0;if(v>0)m['c|'+day+'|'+sl+'|'+k]=String(v);}
+  }}}
+  (st.inv||[]).forEach(function(i){
+    var o={};Object.keys(i).sort().forEach(function(k){o[k]=i[k];});
+    m['i|'+i.id]=JSON.stringify(o);
+  });
+  return m;
+}
+function syIdNum(id){var n=parseFloat(String(id).replace(/^\D+/,''));return isNaN(n)?0:n;}
+function syUnflatten(m){
+  var projs=[],data={},inv=[];
+  Object.keys(m).forEach(function(key){
+    var a=key.split('|'),v=m[key];
+    if(a[0]==='p'){var p=JSON.parse(v);p.id=a[1];if(!p.closed)delete p.closed;projs.push(p);}
+    else if(a[0]==='i'){inv.push(JSON.parse(v));}
+    else if(a[0]==='c'||a[0]==='b'){
+      var day=a[1],sl=a[2];
+      if(!data[day])data[day]={};
+      if(!data[day][sl])data[day][sl]={};
+      if(a[0]==='b')data[day][sl].bem=v;else data[day][sl][a[3]]=parseFloat(v);
+    }
+  });
+  projs.sort(function(x,y){return syIdNum(x.id)-syIdNum(y.id);});
+  return {projs:projs,data:data,inv:inv};
+}
+function syEqual(a,b){
+  var ka=Object.keys(a),kb=Object.keys(b);
+  if(ka.length!==kb.length)return false;
+  for(var i=0;i<ka.length;i++)if(a[ka[i]]!==b[ka[i]])return false;
+  return true;
+}
+function syMerge(L,B,R){ // 3-Wege: lokal / gemeinsamer Stand / Datei
+  var keys={},m={},conf=[];
+  [L,B,R].forEach(function(x){for(var k in x)keys[k]=1;});
+  Object.keys(keys).sort().forEach(function(k){
+    var l=L[k],b=B[k],r=R[k],v;
+    if(l===r)v=l;
+    else if(l===b)v=r;
+    else if(r===b)v=l;
+    else{conf.push({k:k,l:l,r:r});v=l;}
+    if(v!==undefined)m[k]=v;
+  });
+  return {m:m,conf:conf};
+}
+function syNewRev(){return Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);}
+function syPayload(M,parent,base){
+  return Object.assign({v:5,app:'bks-stunden',rev:syNewRev(),parent:parent||null,base:base||{},device:syCfg().device,savedAt:new Date().toISOString()},syUnflatten(M));
+}
+// Eine Datei mit dem lokalen Stand L zusammenführen.
+// myBase/myRev = letzter Dateistand, den dieses Gerät kennt.
+async function syIncoming(obj,L,myBase,myRev){
+  var rc=JSON.parse(JSON.stringify(obj));rc.data=normalizeData(rc.data||{});
+  var R=syFlatten(rc),B;
+  if(obj.rev&&(obj.rev===myRev||obj.parent===myRev))B=myBase||{};
+  else if(obj.base)B=obj.base;      // Datei beruht auf älterem Stand → deren Basis verwenden
+  else B={};                         // alte Datei ohne Versionsangabe → alles vergleichen
+  var mg=syMerge(L,B,R),M=mg.m;
+  if(mg.conf.length){
+    var ch=await syAskConflicts(mg.conf,L,R,obj.device||'Datei');
+    if(!ch)return null;
+    mg.conf.forEach(function(c,i){var v=ch[i]==='l'?c.l:c.r;if(v===undefined)delete M[c.k];else M[c.k]=v;});
+  }
+  return {M:M,R:R};
+}
+function syApply(M){
+  var u=syUnflatten(M);
+  S.projs=u.projs;S.data=u.data;S.inv=u.inv;
+  if(!S.projs.length)S.projs=[{id:'p0',name:'Büro',num:'2500',color:COLORS[0]}];
+  if(S.bill.pid&&!projById(S.bill.pid))S.bill.pid=null;
+  autoBackup();
+  var ae=document.activeElement;
+  if(ae&&ae.tagName==='INPUT'&&ae.type==='text'){renderDayList();if(S.day)renderFoot();}
+  else renderAll();
+}
+
+// ── Konfliktdialog ───────────────────────────────────────
+var _cf=null;
+function syDescribe(k,L,R){
+  var a=k.split('|');
+  function pname(id){
+    var raw=L['p|'+id]||R['p|'+id];
+    if(raw){var p=JSON.parse(raw);return (p.num?p.num+' ':'')+p.name;}
+    var q=projById(id);return q?q.name:id;
+  }
+  if(a[0]==='c')return fmtD(a[1])+'  '+a[2]+' · '+pname(a[3]);
+  if(a[0]==='b')return fmtD(a[1])+'  '+a[2]+' · Bemerkung';
+  if(a[0]==='p')return 'Projekt '+pname(a[1]);
+  if(a[0]==='i'){var raw=L[k]||R[k];var i=raw?JSON.parse(raw):{};return 'Abrechnung '+(i.nr||'')+' '+fmtD(i.from)+'–'+fmtD(i.to);}
+  return k;
+}
+function syShowVal(k,v){
+  if(v===undefined)return 'leer / gelöscht';
+  var t=k.charAt(0);
+  if(t==='c')return fmtQ(parseFloat(v));
+  if(t==='b')return '«'+v+'»';
+  if(t==='p'){var p=JSON.parse(v);return p.name+(p.closed?' (abgeschl.)':'');}
+  if(t==='i'){var i=JSON.parse(v);return (i.h!==undefined?i.h.toFixed(2)+' h':'')+(i.nr?' · '+i.nr:'');}
+  return v;
+}
+function syAskConflicts(conf,L,R,other){
+  return new Promise(function(resolve){
+    var me=syCfg().device;
+    if(other===me)other=me+' (Datei)';
+    _cf={conf:conf,choice:conf.map(function(){return 'l';}),resolve:resolve};
+    document.getElementById('cfIntro').innerHTML=(conf.length===1?'Dieser Eintrag wurde':'Diese '+conf.length+' Einträge wurden')+' auf <b>'+esc(me)+'</b> und auf <b>'+esc(other)+'</b> unterschiedlich geändert. Wähle, welcher stimmt.';
+    document.getElementById('cfAllL').textContent='Alle: '+me;
+    document.getElementById('cfAllR').textContent='Alle: '+other;
+    var h='';
+    conf.forEach(function(c,i){
+      h+='<div class="cf-row"><div class="cf-what">'+esc(syDescribe(c.k,L,R))+'</div><div class="cf-opts">'+
+        '<label class="on" id="cf'+i+'l" onclick="cfPick('+i+',\'l\')"><input type="radio" name="cf'+i+'">'+esc(me)+': '+esc(syShowVal(c.k,c.l))+'</label>'+
+        '<label id="cf'+i+'r" onclick="cfPick('+i+',\'r\')"><input type="radio" name="cf'+i+'">'+esc(other)+': '+esc(syShowVal(c.k,c.r))+'</label>'+
+        '</div></div>';
+    });
+    document.getElementById('cfList').innerHTML=h;
+    document.getElementById('cfModal').classList.add('open');
+  });
+}
+function cfPick(i,w){
+  if(!_cf)return;_cf.choice[i]=w;
+  document.getElementById('cf'+i+'l').classList.toggle('on',w==='l');
+  document.getElementById('cf'+i+'r').classList.toggle('on',w==='r');
+}
+function cfAll(w){if(!_cf)return;_cf.conf.forEach(function(c,i){cfPick(i,w);});}
+function cfDone(ok){
+  if(!_cf)return;
+  document.getElementById('cfModal').classList.remove('open');
+  var r=_cf.resolve,ch=_cf.choice;_cf=null;
+  r(ok?ch:null);
+}
+
+// ── Manuell: Laden / Speichern (Tablet, oder PC ohne verbundenen Ordner) ──
+function syParse(text,name){
+  try{var o=JSON.parse(text);if(o&&(o.projs||o.data))return o;}catch(e){}
+  toast((name||'Datei')+' ist keine gültige Stunden-Datei');return null;
+}
+async function loadFromFile(evt){
+  var files=Array.prototype.slice.call(evt.target.files||[]);
+  evt.target.value='';
+  if(!files.length)return;
+  files.sort(function(a,b){return a.lastModified-b.lastModified;});
+  var L=syFlatten(S),cur=L,b=lsGet(SY_BASE,{}),r=lsGet(SY_REV,null);
+  for(var i=0;i<files.length;i++){
+    var obj=syParse(await files[i].text(),files[i].name);if(!obj)continue;
+    var res=await syIncoming(obj,cur,b,r);
+    if(!res){toast('Laden abgebrochen — nichts geändert');return;}
+    cur=res.M;b=res.R;r=obj.rev||null;
+  }
+  if(!syEqual(cur,L))syApply(cur);
+  lsSet(SY_BASE,b);lsSet(SY_REV,r);
+  syManualStatus();
+  toast('✓ Geladen und zusammengeführt');
+  if(_fs.dir)fsSync(true);
+}
+async function saveToFile(){
+  if(_fs.dir){await fsSync(true);return;}
+  if(syCfg().mode==='graph'&&syGraphReady()){await graphSync(true);return;}
+  var L=syFlatten(S);
+  var payload=syPayload(L,lsGet(SY_REV,null),lsGet(SY_BASE,{}));
+  var text=JSON.stringify(payload);
+  function done(){
+    lsSet(SY_BASE,L);lsSet(SY_REV,payload.rev);lsSet('bks_sync_last',syTime()+' '+fmtD(lkey(new Date())).substr(0,6));
+    try{localStorage.setItem(APP_KEY,JSON.stringify(getPayload()));}catch(e){}
+    markUnsaved(false);syManualStatus();
+  }
+  if(IS_MOBILE&&navigator.canShare){
+    var f=new File([text],SY_FILE,{type:'text/plain'});
+    if(navigator.canShare({files:[f]})){
+      try{await navigator.share({files:[f],title:SY_FILE});done();toast('✓ Geteilt — in OneDrive im Ordner «Stundenerfassung» speichern');}
+      catch(e){if(e&&e.name!=='AbortError')toast('Teilen fehlgeschlagen: '+e.message);}
+      return;
+    }
+  }
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'}));
+  a.download=SY_FILE;a.click();
+  done();
+  toast('↓ '+SY_FILE+' gespeichert — in den OneDrive-Ordner «Stundenerfassung» legen');
+}
+
+// ── PC: OneDrive-Ordner verbinden (automatisch) ──────────
+function idbOpen(){return new Promise(function(res,rej){var r=indexedDB.open('bks-stunden',1);r.onupgradeneeded=function(){r.result.createObjectStore('kv');};r.onsuccess=function(){res(r.result);};r.onerror=function(){rej(r.error);};});}
+async function idbGet(k){var db=await idbOpen();return new Promise(function(res,rej){var q=db.transaction('kv').objectStore('kv').get(k);q.onsuccess=function(){res(q.result);};q.onerror=function(){rej(q.error);};});}
+async function idbSet(k,v){var db=await idbOpen();return new Promise(function(res,rej){var tx=db.transaction('kv','readwrite');if(v===undefined)tx.objectStore('kv').delete(k);else tx.objectStore('kv').put(v,k);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});}
+
+async function fsPerm(request){
+  if(!_fs.dir)return false;
+  var o={mode:'readwrite'};
+  try{
+    if(await _fs.dir.queryPermission(o)==='granted')return true;
+    if(request)return (await _fs.dir.requestPermission(o))==='granted';
+  }catch(e){}
+  return false;
+}
+async function fsConnect(){
+  try{
+    var d=await window.showDirectoryPicker({id:'bks-stunden',mode:'readwrite',startIn:'documents'});
+    _fs.dir=d;_fs.sig=null;
+    await idbSet('dir',d);
+    var c=syCfg();c.mode='file';c.device=document.getElementById('sy-dev').value.trim()||c.device;lsSet(SY_CFG,c);
+    closeSyncModal();
+    toast('Ordner «'+d.name+'» verbunden');
+    await fsSync(true);
+  }catch(e){if(!e||e.name!=='AbortError')toast('Ordner konnte nicht verbunden werden: '+(e&&e.message));}
+}
+async function fsDisconnect(){
+  _fs.dir=null;_fs.sig=null;
+  try{await idbSet('dir',undefined);}catch(e){}
+  closeSyncModal();syManualStatus();toast('Ordner getrennt');
+}
+async function fsList(){
+  var out=[];
+  for await (var entry of _fs.dir.values()){
+    if(entry.kind==='file'&&/^stunden.*\.(txt|json)$/i.test(entry.name)){
+      var f=await entry.getFile();out.push({name:entry.name,f:f});
+    }
+  }
+  out.sort(function(a,b){return a.f.lastModified-b.f.lastModified;});
+  return out;
+}
+async function fsSync(manual){
+  if(!_fs.dir)return;
+  if(_sy.busy){_sy.again=true;return;}
+  if(!(await fsPerm(manual))){setSync('err','Zugriff erlauben');return;}
+  _sy.busy=true;clearTimeout(_sy.timer);
+  setSync('busy','Synchronisiere…');
+  try{
+    var files=await fsList();
+    var sig=files.map(function(x){return x.name+':'+x.f.lastModified+':'+x.f.size;}).join('|');
+    var L=syFlatten(S);
+    if(!manual&&sig===_fs.sig&&syEqual(L,lsGet(SY_BASE,{}))){setSync('ok','Sync '+syTime());return;}
+    var cur=L,b=lsGet(SY_BASE,{}),r=lsGet(SY_REV,null),valid=0;
+    for(var i=0;i<files.length;i++){
+      var obj=syParse(await files[i].f.text(),files[i].name);if(!obj)continue;
+      valid++;
+      var res=await syIncoming(obj,cur,b,r);
+      if(!res){setSync('err','Konflikt offen');return;}
+      cur=res.M;b=res.R;r=obj.rev||null;
+    }
+    if(!syEqual(syFlatten(S),L)){_sy.again=true;return;} // während des Abgleichs weiter erfasst
+    if(!syEqual(cur,L))syApply(cur);
+    var needWrite=!valid||files.length>1||files[files.length-1].name!==SY_FILE||!r||!syEqual(cur,b);
+    if(needWrite){
+      var payload=syPayload(cur,r,b);
+      var fh=await _fs.dir.getFileHandle(SY_FILE,{create:true});
+      var w=await fh.createWritable();await w.write(JSON.stringify(payload));await w.close();
+      for(var j=0;j<files.length;j++){if(files[j].name!==SY_FILE){try{await _fs.dir.removeEntry(files[j].name);}catch(e){}}}
+      b=cur;r=payload.rev;
+    }
+    lsSet(SY_BASE,b);lsSet(SY_REV,r);
+    _fs.sig=(await fsList()).map(function(x){return x.name+':'+x.f.lastModified+':'+x.f.size;}).join('|');
+    setSync('ok','Sync '+syTime());
+    markUnsaved(false);
+  }catch(e){
+    console.error('Ordner-Sync',e);
+    setSync('err','Sync-Fehler');
+    if(manual)toast('Synchronisation fehlgeschlagen: '+(e&&e.message));
+  }finally{
+    _sy.busy=false;
+    if(_sy.again){_sy.again=false;setTimeout(function(){fsSync(false);},400);}
+  }
+}
+
+// ── OneDrive direkt (Microsoft-Anmeldung, PKCE) ──────────
 function b64url(bytes){var s='';var a=new Uint8Array(bytes);for(var i=0;i<a.length;i++)s+=String.fromCharCode(a[i]);return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
 function syRnd(n){var a=new Uint8Array(n);crypto.getRandomValues(a);return b64url(a);}
-
 async function syLogin(){
   var c=syCfg();
-  if(!syConfigured()){openSyncModal();return;}
+  if(!syGraphReady()){openSyncModal();return;}
   if(!navigator.onLine){toast('Offline — Anmeldung später');return;}
-  autoBackup(); // lokale Daten sichern, bevor die Seite wechselt
+  autoBackup();
   var verifier=syRnd(48),state=syRnd(16);
   var ch=b64url(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier)));
   lsSet(SY_PKCE,{v:verifier,s:state});
@@ -1274,143 +1563,13 @@ async function syGetToken(){
   if(!n){lsDel(SY_TOK);return null;}
   return n.at;
 }
-function syncLogout(){
-  lsDel(SY_TOK);
-  setSync('','OneDrive');
-  closeSyncModal();
-  toast('Abgemeldet — Daten bleiben auf diesem Gerät');
-}
-
-// ── Daten flach machen / zurückbauen ─────────────────────
-function syFlatten(st){
-  var m={};
-  (st.projs||[]).forEach(function(p){
-    m['p|'+p.id]=JSON.stringify({name:p.name||'',num:p.num||'',color:p.color||'',closed:!!p.closed});
-  });
-  var data=st.data||{};
-  for(var day in data){for(var sl in data[day]){var rw=data[day][sl];for(var k in rw){
-    if(k==='bem'){if(rw.bem)m['b|'+day+'|'+sl]=String(rw.bem);}
-    else{var v=parseFloat(rw[k])||0;if(v>0)m['c|'+day+'|'+sl+'|'+k]=String(v);}
-  }}}
-  (st.inv||[]).forEach(function(i){
-    var o={};Object.keys(i).sort().forEach(function(k){o[k]=i[k];});
-    m['i|'+i.id]=JSON.stringify(o);
-  });
-  return m;
-}
-function syIdNum(id){var n=parseFloat(String(id).replace(/^\D+/,''));return isNaN(n)?0:n;}
-function syUnflatten(m){
-  var projs=[],data={},inv=[];
-  Object.keys(m).forEach(function(key){
-    var a=key.split('|'),v=m[key];
-    if(a[0]==='p'){var p=JSON.parse(v);p.id=a[1];projs.push(p);}
-    else if(a[0]==='i'){inv.push(JSON.parse(v));}
-    else if(a[0]==='c'||a[0]==='b'){
-      var day=a[1],sl=a[2];
-      if(!data[day])data[day]={};
-      if(!data[day][sl])data[day][sl]={};
-      if(a[0]==='b')data[day][sl].bem=v;else data[day][sl][a[3]]=parseFloat(v);
-    }
-  });
-  projs.sort(function(x,y){return syIdNum(x.id)-syIdNum(y.id);});
-  projs.forEach(function(p){if(!p.closed)delete p.closed;});
-  return {projs:projs,data:data,inv:inv};
-}
-function syEqual(a,b){
-  var ka=Object.keys(a),kb=Object.keys(b);
-  if(ka.length!==kb.length)return false;
-  for(var i=0;i<ka.length;i++)if(a[ka[i]]!==b[ka[i]])return false;
-  return true;
-}
-// 3-Wege: lokal (L), letzter gemeinsamer Stand (B), OneDrive (R)
-function syMerge(L,B,R){
-  var keys={},m={},conf=[];
-  [L,B,R].forEach(function(x){for(var k in x)keys[k]=1;});
-  Object.keys(keys).sort().forEach(function(k){
-    var l=L[k],b=B[k],r=R[k],v;
-    if(l===r)v=l;
-    else if(l===b)v=r;
-    else if(r===b)v=l;
-    else{conf.push({k:k,l:l,r:r});v=l;}
-    if(v!==undefined)m[k]=v;
-  });
-  return {m:m,conf:conf};
-}
-
-// ── Konfliktdialog ───────────────────────────────────────
-var _cf=null;
-function syDescribe(k,L,R){
-  var a=k.split('|');
-  function pname(id){
-    var raw=L['p|'+id]||R['p|'+id];
-    if(raw){var p=JSON.parse(raw);return (p.num?p.num+' ':'')+p.name;}
-    var q=projById(id);return q?q.name:id;
-  }
-  if(a[0]==='c')return fmtD(a[1])+'  '+a[2]+' · '+pname(a[3]);
-  if(a[0]==='b')return fmtD(a[1])+'  '+a[2]+' · Bemerkung';
-  if(a[0]==='p')return 'Projekt '+pname(a[1]);
-  if(a[0]==='i'){var raw=L[k]||R[k];var i=raw?JSON.parse(raw):{};return 'Abrechnung '+(i.nr||'')+' '+fmtD(i.from)+'–'+fmtD(i.to);}
-  return k;
-}
-function syShowVal(k,v){
-  if(v===undefined)return 'leer / gelöscht';
-  var t=k.charAt(0);
-  if(t==='c')return fmtQ(parseFloat(v));
-  if(t==='b')return '«'+v+'»';
-  if(t==='p'){var p=JSON.parse(v);return p.name+(p.closed?' (abgeschl.)':'');}
-  if(t==='i'){var i=JSON.parse(v);return (i.h!==undefined?i.h.toFixed(2)+' h':'')+(i.nr?' · '+i.nr:'');}
-  return v;
-}
-function syAskConflicts(conf,L,R,other){
-  return new Promise(function(resolve){
-    _cf={conf:conf,choice:conf.map(function(){return 'l';}),resolve:resolve};
-    var me=syCfg().device;
-    document.getElementById('cfIntro').innerHTML=(conf.length===1?'Dieser Eintrag wurde':'Diese '+conf.length+' Einträge wurden')+' auf <b>'+esc(me)+'</b> und auf <b>'+esc(other)+'</b> unterschiedlich geändert. Wähle, welcher stimmt.';
-    document.getElementById('cfAllL').textContent='Alle: '+me;
-    document.getElementById('cfAllR').textContent='Alle: '+other;
-    var h='';
-    conf.forEach(function(c,i){
-      h+='<div class="cf-row"><div class="cf-what">'+esc(syDescribe(c.k,L,R))+'</div><div class="cf-opts">'+
-        '<label class="on" id="cf'+i+'l" onclick="cfPick('+i+',\'l\')"><input type="radio" name="cf'+i+'">'+esc(me)+': '+esc(syShowVal(c.k,c.l))+'</label>'+
-        '<label id="cf'+i+'r" onclick="cfPick('+i+',\'r\')"><input type="radio" name="cf'+i+'">'+esc(other)+': '+esc(syShowVal(c.k,c.r))+'</label>'+
-        '</div></div>';
-    });
-    document.getElementById('cfList').innerHTML=h;
-    document.getElementById('cfModal').classList.add('open');
-  });
-}
-function cfPick(i,w){
-  if(!_cf)return;_cf.choice[i]=w;
-  document.getElementById('cf'+i+'l').classList.toggle('on',w==='l');
-  document.getElementById('cf'+i+'r').classList.toggle('on',w==='r');
-}
-function cfAll(w){if(!_cf)return;_cf.conf.forEach(function(c,i){cfPick(i,w);});}
-function cfDone(ok){
-  if(!_cf)return;
-  document.getElementById('cfModal').classList.remove('open');
-  var r=_cf.resolve,ch=_cf.choice;_cf=null;
-  r(ok?ch:null);
-}
-
-// ── OneDrive (Microsoft Graph) ───────────────────────────
+function syncLogout(){lsDel(SY_TOK);setSync('','Sync');closeSyncModal();toast('Abgemeldet — Daten bleiben auf diesem Gerät');}
 function syItemUrl(){
   var p=syCfg().path.replace(/^\/+|\/+$/g,'');
   return 'https://graph.microsoft.com/v1.0/me/drive/root:/'+p.split('/').map(encodeURIComponent).join('/');
 }
-function syApply(M){
-  var u=syUnflatten(M);
-  S.projs=u.projs;S.data=u.data;S.inv=u.inv;
-  if(!S.projs.length)S.projs=[{id:'p0',name:'Büro',num:'2500',color:COLORS[0]}];
-  if(S.bill.pid&&!projById(S.bill.pid))S.bill.pid=null;
-  autoBackup();
-  var ae=document.activeElement;
-  var typing=ae&&ae.tagName==='INPUT'&&ae.type==='text';
-  if(!typing)renderAll();else{renderDayList();if(S.day)renderFoot();}
-}
-function syTime(){var d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes());}
-
-async function sync(manual){
-  if(!syConfigured()){if(manual)openSyncModal();return;}
+async function graphSync(manual){
+  if(!syGraphReady()){if(manual)openSyncModal();return;}
   if(_sy.busy){_sy.again=true;return;}
   if(!navigator.onLine){setSync('err','Offline');return;}
   clearTimeout(_sy.timer);
@@ -1419,54 +1578,37 @@ async function sync(manual){
     var tok=await syGetToken();
     if(!tok){setSync('err','Anmeldung nötig');return;}
     var H={Authorization:'Bearer '+tok};
-
-    // 1) Stand in OneDrive abfragen
     var r=await fetch(syItemUrl(),{headers:H,cache:'no-store'});
     var remote=null,etag=null;
     if(r.status===401){lsDel(SY_TOK);setSync('err','Anmeldung nötig');return;}
     if(r.status!==404){
       if(!r.ok)throw new Error('OneDrive '+r.status);
       var meta=await r.json();etag=meta.eTag;
-      if(!manual&&etag===lsGet(SY_ETAG,null)&&syEqual(syFlatten(S),lsGet(SY_BASE,{}))){
-        setSync('ok','Sync '+syTime());return; // nichts Neues
-      }
+      if(!manual&&etag===lsGet(SY_ETAG,null)&&syEqual(syFlatten(S),lsGet(SY_BASE,{}))){setSync('ok','Sync '+syTime());return;}
       var d=await fetch(meta['@microsoft.graph.downloadUrl'],{cache:'no-store'});
       if(!d.ok)throw new Error('Download '+d.status);
-      remote=await d.json();
+      remote=syParse(await d.text(),'OneDrive-Datei');
     }
-
-    // 2) Zusammenführen
-    var L=syFlatten(S),B=lsGet(SY_BASE,{}),R={};
-    if(remote){var rc=JSON.parse(JSON.stringify(remote));rc.data=normalizeData(rc.data||{});R=syFlatten(rc);}
-    var M=L;
+    var L=syFlatten(S),M=L,R={};
     if(remote){
-      var mg=syMerge(L,B,R);M=mg.m;
-      if(mg.conf.length){
-        setSync('busy','Konflikte prüfen…');
-        var ch=await syAskConflicts(mg.conf,L,R,remote.device||'anderes Gerät');
-        if(!ch){setSync('err','Konflikt offen');return;}
-        mg.conf.forEach(function(c,i){var v=ch[i]==='l'?c.l:c.r;if(v===undefined)delete M[c.k];else M[c.k]=v;});
-      }
+      var res=await syIncoming(remote,L,lsGet(SY_BASE,{}),lsGet(SY_REV,null));
+      if(!res){setSync('err','Konflikt offen');return;}
+      M=res.M;R=res.R;
     }
-    // Wurde während des Abgleichs lokal weiter erfasst? Dann neu starten.
     if(!syEqual(syFlatten(S),L)){_sy.again=true;return;}
     if(!syEqual(M,L))syApply(M);
-
-    // 3) Hochladen, falls OneDrive nicht schon diesen Stand hat
-    if(!remote||!syEqual(M,R)){
-      var body=JSON.stringify(Object.assign({v:4,app:'bks-stunden',device:syCfg().device,savedAt:new Date().toISOString()},syUnflatten(M)));
-      var ph={Authorization:'Bearer '+tok,'Content-Type':'application/json'};
+    var rev=remote?remote.rev:null;
+    if(!remote||!rev||!syEqual(M,R)){
+      var payload=syPayload(M,rev,R);
+      var ph={Authorization:'Bearer '+tok,'Content-Type':'text/plain'};
       if(etag)ph['If-Match']=etag;
-      var u=await fetch(syItemUrl()+':/content',{method:'PUT',headers:ph,body:body});
-      if(u.status===412||u.status===409){ // anderes Gerät war schneller
-        if(_sy.retries++<3)_sy.again=true;else setSync('err','Konflikt beim Speichern');
-        return;
-      }
+      var u=await fetch(syItemUrl()+':/content',{method:'PUT',headers:ph,body:JSON.stringify(payload)});
+      if(u.status===412||u.status===409){if(_sy.retries++<3)_sy.again=true;else setSync('err','Konflikt beim Speichern');return;}
       if(u.status===401){lsDel(SY_TOK);setSync('err','Anmeldung nötig');return;}
       if(!u.ok)throw new Error('Upload '+u.status);
-      etag=(await u.json()).eTag;
+      etag=(await u.json()).eTag;rev=payload.rev;
     }
-    lsSet(SY_BASE,M);lsSet(SY_ETAG,etag);
+    lsSet(SY_BASE,M);lsSet(SY_REV,rev);lsSet(SY_ETAG,etag);
     _sy.retries=0;
     setSync('ok','Sync '+syTime());
     markUnsaved(false);
@@ -1475,27 +1617,57 @@ async function sync(manual){
     setSync('err',navigator.onLine?'Sync-Fehler':'Offline');
   }finally{
     _sy.busy=false;
-    if(_sy.again){_sy.again=false;setTimeout(function(){sync();},400);}
+    if(_sy.again){_sy.again=false;setTimeout(function(){graphSync(false);},400);}
   }
 }
+
+// ── Gemeinsame Steuerung ─────────────────────────────────
+function sync(manual){
+  if(syCfg().mode==='graph')return graphSync(manual);
+  if(_fs.dir)return fsSync(manual);
+  syManualStatus();
+}
 function scheduleSync(){
-  if(!syConfigured()||!lsGet(SY_TOK,null))return;
   clearTimeout(_sy.timer);
-  if(!_sy.busy)setSync('busy','Änderungen…');
-  _sy.timer=setTimeout(function(){sync();},4000);
+  var c=syCfg();
+  if(c.mode==='graph'){
+    if(!syGraphReady()||!lsGet(SY_TOK,null))return;
+    if(!_sy.busy)setSync('busy','Änderungen…');
+    _sy.timer=setTimeout(function(){graphSync(false);},4000);
+  }else if(_fs.dir){
+    if(!_sy.busy)setSync('busy','Änderungen…');
+    _sy.timer=setTimeout(function(){fsSync(false);},2500);
+  }else{
+    _sy.timer=setTimeout(syManualStatus,400);
+  }
+}
+function syncPillClick(){
+  if(_fs.dir&&_sy.txt==='Zugriff erlauben'){fsSync(true);return;}
+  if(syCfg().mode==='graph'&&_sy.txt==='Anmeldung nötig'){syLogin();return;}
+  openSyncModal();
 }
 
 // ── Einstellungen ────────────────────────────────────────
+function syModeUI(){
+  var m=document.querySelector('input[name="symode"]:checked');m=m?m.value:'file';
+  document.getElementById('sy-file-box').style.display=m==='file'?'':'none';
+  document.getElementById('sy-graph-box').style.display=m==='graph'?'':'none';
+  document.getElementById('sy-logout').style.display=(m==='graph'&&lsGet(SY_TOK,null))?'':'none';
+}
 function openSyncModal(){
   var c=syCfg();
+  document.querySelectorAll('input[name="symode"]').forEach(function(r){r.checked=r.value===c.mode;});
   document.getElementById('sy-redir').value=syRedirect();
   document.getElementById('sy-client').value=c.clientId||'';
   document.getElementById('sy-tenant').value=c.tenant||'';
   document.getElementById('sy-path').value=c.path;
   document.getElementById('sy-dev').value=c.device;
+  document.getElementById('sy-fs').style.display=HAS_FS?'':'none';
+  document.getElementById('sy-man').style.display=HAS_FS?'none':'';
+  document.getElementById('sy-dirname').textContent=_fs.dir?'Verbunden: Ordner «'+_fs.dir.name+'»':'Noch kein Ordner verbunden';
+  document.getElementById('sy-disc').style.display=_fs.dir?'':'none';
   document.getElementById('syncStat').textContent=syStatusText();
-  document.getElementById('sy-logout').style.display=lsGet(SY_TOK,null)?'':'none';
-  document.getElementById('sy-now').style.display=lsGet(SY_TOK,null)?'':'none';
+  syModeUI();
   document.getElementById('syncModal').classList.add('open');
 }
 function closeSyncModal(){document.getElementById('syncModal').classList.remove('open');}
@@ -1506,39 +1678,50 @@ function copyRedir(){
 }
 function saveSyncCfg(){
   var old=syCfg();
+  var m=document.querySelector('input[name="symode"]:checked');m=m?m.value:'file';
   var c={
+    mode:m,
     clientId:document.getElementById('sy-client').value.trim(),
     tenant:document.getElementById('sy-tenant').value.trim(),
     path:(document.getElementById('sy-path').value.trim()||SY_DEFAULT_PATH).replace(/^\/+/,''),
     device:document.getElementById('sy-dev').value.trim()||old.device
   };
-  if(!c.clientId||!c.tenant){toast('Client-ID und Tenant-ID eintragen');return;}
-  if(c.clientId!==old.clientId||c.tenant!==old.tenant){lsDel(SY_TOK);}
-  if(c.path!==old.path||c.clientId!==old.clientId||c.tenant!==old.tenant){lsDel(SY_BASE);lsDel(SY_ETAG);}
+  if(m==='graph'&&(!c.clientId||!c.tenant)){toast('Client-ID und Tenant-ID eintragen');return;}
+  if(c.clientId!==old.clientId||c.tenant!==old.tenant)lsDel(SY_TOK);
+  if(m!==old.mode||c.path!==old.path)lsDel(SY_ETAG);
   lsSet(SY_CFG,c);
   closeSyncModal();
-  if(lsGet(SY_TOK,null))sync(true);else syLogin();
+  if(m==='graph'){if(lsGet(SY_TOK,null))graphSync(true);else syLogin();}
+  else{setSync('','Sync');sync(true);toast('Gespeichert');}
 }
 
 // ── Start ────────────────────────────────────────────────
 async function syInit(){
-  if(!syConfigured()){setSync('','OneDrive');return;}
-  try{await syHandleRedirect();}catch(e){console.error(e);}
-  if(lsGet(SY_TOK,null)){
-    await sync(true);
-    if(_sy.state==='err'&&_sy.txt==='Anmeldung nötig')syAutoLogin();
-  }else{
-    setSync('err','Anmeldung nötig');
-    syAutoLogin();
+  var c=syCfg();
+  if(c.mode==='graph'){
+    if(!syGraphReady()){setSync('','Sync');return;}
+    try{await syHandleRedirect();}catch(e){console.error(e);}
+    if(lsGet(SY_TOK,null)){
+      await graphSync(true);
+      if(_sy.txt==='Anmeldung nötig')syAutoLogin();
+    }else{setSync('err','Anmeldung nötig');syAutoLogin();}
+    return;
   }
+  if(HAS_FS){try{_fs.dir=await idbGet('dir')||null;}catch(e){_fs.dir=null;}}
+  if(_fs.dir){await fsSync(false);}
+  else syManualStatus();
 }
-function syAutoLogin(){ // einmal pro Sitzung automatisch neu anmelden (meist ohne Passwort)
+function syAutoLogin(){
   var tried=false;try{tried=!!sessionStorage.getItem('bks_autologin');sessionStorage.setItem('bks_autologin','1');}catch(e){}
   if(!tried&&navigator.onLine)syLogin();
 }
-window.addEventListener('online',function(){sync();});
-document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')sync();});
-setInterval(function(){if(document.visibilityState==='visible'&&!_sy.busy)sync();},60000);
+window.addEventListener('online',function(){if(syCfg().mode==='graph')graphSync(false);});
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')sync(false);});
+setInterval(function(){
+  if(document.visibilityState!=='visible'||_sy.busy)return;
+  if(syCfg().mode==='graph')graphSync(false);
+  else if(_fs.dir)fsPerm(false).then(function(ok){if(ok)fsSync(false);});
+},30000);
 document.getElementById('syncModal').addEventListener('click',function(e){if(e.target===this)closeSyncModal();});
 if('serviceWorker' in navigator&&location.protocol==='https:'){navigator.serviceWorker.register('sw.js').catch(function(){});}
 
@@ -1559,12 +1742,6 @@ setView('ov');
 
 syInit();
 
-if(!syConfigured() && _hadBackup && (S.data && Object.keys(S.data).length > 0)){
-  setTimeout(function(){
-    toast('⚠ Daten aus Browser-Backup geladen — bitte JSON speichern!');
-    markUnsaved(true);
-  },600);
-}
 </script>
 </body>
 </html>
